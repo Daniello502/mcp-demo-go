@@ -71,37 +71,30 @@ podman push docker.io/yourusername/mcp-k8s-server:v1
 - Use your Docker Hub Personal Access Token (PAT) as the password when logging in
 - Create a PAT at: https://hub.docker.com/settings/security
 
-### 2. Configure API Key
+### 2. Configure Environment Variables
 
-Edit `k8s/secret.yaml` and replace `<BASE64_ENCODED_API_KEY>` with your base64-encoded Anthropic API key:
-
-```bash
-# Encode your API key
-echo -n "your-anthropic-api-key-here" | base64
-
-# Update the secret.yaml file with the encoded value
-```
-
-### 3. Update Image Reference
-
-Edit `k8s/deployment.yaml` and update the image reference:
-
-```yaml
-image: docker.io/yourusername/mcp-k8s-server:v1
-```
-
-### 4. Deploy to Minikube
+Create a `.env` file with your configuration:
 
 ```bash
-# Apply all manifests
+# Copy the template
+cp config.template .env
+
+# Edit with your values
+DOCKER_USERNAME=yourusername
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+```
+
+### 3. Deploy to Minikube
+
+```bash
+# Deploy everything (the script will handle image reference and secret creation)
+./deploy.sh
+
+# Or manually:
 kubectl apply -k k8s/
-
-# Verify deployment
-kubectl get pods -n mcp-demo
-kubectl logs -f deployment/mcp-server -n mcp-demo
 ```
 
-### 5. Access the Application
+### 4. Access the Application
 
 ```bash
 # Get the service URL

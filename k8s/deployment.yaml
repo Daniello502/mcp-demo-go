@@ -29,13 +29,25 @@ spec:
               name: mcp-server-secret
               key: anthropic-api-key
         - name: KIALI_ENDPOINT
-          value: "http://kiali.istio-system:20001"
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-server-config
+              key: kiali-endpoint
         - name: JAEGER_ENDPOINT
-          value: "http://jaeger-query.istio-system:16686"
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-server-config
+              key: jaeger-endpoint
         - name: PROMETHEUS_ENDPOINT
-          value: "http://prometheus.istio-system:9090"
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-server-config
+              key: prometheus-endpoint
         - name: GRAFANA_ENDPOINT
-          value: "http://grafana.istio-system:3000"
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-server-config
+              key: grafana-endpoint
         resources:
           requests:
             memory: "128Mi"

@@ -6,7 +6,6 @@ resources:
 - serviceaccount.yaml
 - clusterrole.yaml
 - clusterrolebinding.yaml
-- secret.yaml
 - deployment.yaml
 - service.yaml
 
