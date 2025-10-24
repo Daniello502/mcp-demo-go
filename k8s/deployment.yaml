@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: mcp-demo
+  labels:
+    app: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      serviceAccountName: mcp-server
+      containers:
+      - name: mcp-server
+        image: docker.io/yourusername/mcp-k8s-server:v1
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-server-secret
+              key: anthropic-api-key
+        - name: KIALI_ENDPOINT
+          value: "http://kiali.istio-system:20001"
+        - name: JAEGER_ENDPOINT
+          value: "http://jaeger-query.istio-system:16686"
+        - name: PROMETHEUS_ENDPOINT
+          value: "http://prometheus.istio-system:9090"
+        - name: GRAFANA_ENDPOINT
+          value: "http://grafana.istio-system:3000"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "0.25"
+          limits:
+            memory: "256Mi"
+            cpu: "0.5"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5

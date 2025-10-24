@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-server-role
+  labels:
+    app: mcp-server
+rules:
+# Basic Kubernetes read permissions
+- apiGroups: [""]
+  resources: ["pods", "services", "events", "namespaces", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+# Istio CRD read permissions
+- apiGroups: ["networking.istio.io"]
+  resources: ["virtualservices", "destinationrules", "gateways", "serviceentries"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["security.istio.io"]
+  resources: ["authorizationpolicies", "peerauthentications", "requestauthentications"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["telemetry.istio.io"]
+  resources: ["telemetries"]
+  verbs: ["get", "list", "watch"]
+# Additional permissions for service mesh observability
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "apps"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
