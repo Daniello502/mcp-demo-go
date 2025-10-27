@@ -9,8 +9,8 @@ DOCKER_USERNAME=yourusername
 # Anthropic API Key (will be base64 encoded in Kubernetes secret)
 ANTHROPIC_API_KEY=your-anthropic-api-key-here
 
-# Service Endpoints (adjust if your Istio addons are in different locations)
+# Service Endpoints (verified for your cluster)
 KIALI_ENDPOINT=http://kiali.istio-system:20001
-JAEGER_ENDPOINT=http://jaeger-query.istio-system:16686
+JAEGER_ENDPOINT=http://tracing.istio-system:16685
 PROMETHEUS_ENDPOINT=http://prometheus.istio-system:9090
 GRAFANA_ENDPOINT=http://grafana.istio-system:3000
