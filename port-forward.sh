@@ -22,7 +22,7 @@ start_port_forward() {
 
 # Start all port-forwards
 start_port_forward "kiali" "istio-system" "20001" "20001" "Kiali"
-start_port_forward "tracing" "istio-system" "16685" "16685" "Jaeger"
+start_port_forward "zipkin" "istio-system" "9411" "9411" "Zipkin/Jaeger"
 start_port_forward "prometheus" "istio-system" "9090" "9090" "Prometheus"
 start_port_forward "grafana" "istio-system" "3000" "3000" "Grafana"
 
@@ -31,7 +31,7 @@ echo "🎉 All service mesh tools are now accessible locally!"
 echo ""
 echo "📋 Access URLs:"
 echo "   Kiali:      http://localhost:20001"
-echo "   Jaeger:     http://localhost:16685"
+echo "   Jaeger:     http://localhost:9411"
 echo "   Prometheus: http://localhost:9090"
 echo "   Grafana:    http://localhost:3000"
 echo ""
