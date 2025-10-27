@@ -11,6 +11,6 @@ ANTHROPIC_API_KEY=your-anthropic-api-key-here
 
 # Service Endpoints (verified for your cluster)
 KIALI_ENDPOINT=http://kiali.istio-system:20001
-JAEGER_ENDPOINT=http://tracing.istio-system:16685
+JAEGER_ENDPOINT=http://tracing.istio-system:80
 PROMETHEUS_ENDPOINT=http://prometheus.istio-system:9090
 GRAFANA_ENDPOINT=http://grafana.istio-system:3000
