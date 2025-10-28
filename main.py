@@ -502,7 +502,7 @@ Always explain what you're doing and provide actionable insights based on the da
         # For this demo, we'll simulate tool calling
         # In a real MCP implementation, this would be handled by the MCP protocol
         response = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=4000,
             system=system_message,
             messages=[
@@ -724,6 +724,13 @@ async def execute_tool(tool_name: str, parameters: Dict[str, Any] = None):
     
     result = execute_mcp_tool(tool_name, parameters)
     return result
+
+@app.on_event("startup")
+async def startup_event():
+    """Actions to perform on server startup"""
+    logger.info("Starting MCP Kubernetes Demo Server...")
+    initialize_clients()
+    logger.info("Server started successfully.")
 
 if __name__ == "__main__":
     # Initialize clients on startup
