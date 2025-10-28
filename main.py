@@ -50,6 +50,115 @@ JAEGER_ENDPOINT = os.getenv("JAEGER_ENDPOINT", "http://jaeger-query.istio-system
 PROMETHEUS_ENDPOINT = os.getenv("PROMETHEUS_ENDPOINT", "http://prometheus.istio-system:9090")
 GRAFANA_ENDPOINT = os.getenv("GRAFANA_ENDPOINT", "http://grafana.istio-system:3000")
 
+# ------------------------
+# Utility helpers (token-safe)
+# ------------------------
+
+def _truncate_string(value: str, max_len: int = 300) -> str:
+    if not isinstance(value, str):
+        return value
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 3] + "..."
+
+def _prune_list(items: List[Any], max_items: int = 20) -> List[Any]:
+    if not isinstance(items, list):
+        return items
+    if len(items) <= max_items:
+        return items
+    return items[:max_items]
+
+def _compact_json(data: Any, max_items: int = 20, max_str: int = 300) -> Any:
+    # Recursively prune big lists/strings and drop verbose fields
+    if isinstance(data, dict):
+        compacted = {}
+        for k, v in data.items():
+            if k in {"logs", "raw", "rawJSON", "raw_json", "fullText"}:
+                continue
+            compacted[k] = _compact_json(v, max_items=max_items, max_str=max_str)
+        return compacted
+    if isinstance(data, list):
+        return [_compact_json(v, max_items=max_items, max_str=max_str) for v in _prune_list(data, max_items=max_items)]
+    if isinstance(data, str):
+        return _truncate_string(data, max_len=max_str)
+    return data
+
+def _summarize_tool_result(tool_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    # Produce a compact summary per tool to save tokens
+    if not isinstance(result, dict):
+        return {"result": _compact_json(result)}
+
+    try:
+        if tool_name == "list_pods":
+            pods = result.get("pods", [])
+            summary = [{
+                "name": p.get("name"),
+                "status": p.get("status"),
+                "ready": p.get("ready"),
+                "restarts": p.get("restarts"),
+            } for p in _prune_list(pods, 20)]
+            return {"count": result.get("count", len(pods)), "pods": summary}
+
+        if tool_name == "get_events":
+            events = result.get("events", [])
+            summary = [{
+                "type": e.get("type"),
+                "reason": e.get("reason"),
+                "message": _truncate_string(e.get("message", ""), 160),
+                "last_timestamp": e.get("last_timestamp"),
+            } for e in _prune_list(events, 20)]
+            return {"count": result.get("count", len(events)), "events": summary}
+
+        if tool_name == "get_kiali_graph":
+            g = result.get("graph_data", {})
+            nodes = g.get("elements", {}).get("nodes", []) if isinstance(g.get("elements"), dict) else []
+            edges = g.get("elements", {}).get("edges", []) if isinstance(g.get("elements"), dict) else []
+            return {
+                "nodes_count": len(nodes),
+                "edges_count": len(edges),
+                "sample_nodes": _prune_list(nodes, 10),
+            }
+
+        if tool_name == "query_jaeger_traces":
+            traces = result.get("traces", {}).get("data", []) if isinstance(result.get("traces"), dict) else []
+            simple = []
+            for t in _prune_list(traces, 10):
+                tid = t.get("traceID") or t.get("traceId") or t.get("id")
+                duration = t.get("duration") or t.get("durationMs")
+                simple.append({"traceID": tid, "duration": duration})
+            return {"traces": simple, "count": len(traces)}
+
+        if tool_name in {"get_istio_metrics", "query_prometheus"}:
+            return _compact_json(result, max_items=10, max_str=120)
+
+        if tool_name in {"list_virtualservices", "list_destinationrules", "list_gateways"}:
+            key = "virtualservices" if tool_name == "list_virtualservices" else (
+                "destinationrules" if tool_name == "list_destinationrules" else "gateways"
+            )
+            items = result.get(key, [])
+            return {
+                "count": len(items),
+                key: _prune_list(items, 15)
+            }
+    except Exception:
+        pass
+    return _compact_json(result, max_items=15, max_str=160)
+
+def _extract_query_params(message: str) -> Dict[str, Any]:
+    # naive extraction of namespace/service/duration
+    import re
+    params: Dict[str, Any] = {}
+    m = re.search(r"namespace\s+([a-z0-9-]+)", message, flags=re.I)
+    if m:
+        params["namespace"] = m.group(1)
+    m = re.search(r"service\s+([a-z0-9-]+)", message, flags=re.I)
+    if m:
+        params["service"] = m.group(1)
+    m = re.search(r"last\s+(\d+)(m|h|d)", message, flags=re.I)
+    if m:
+        params["duration"] = f"{m.group(1)}{m.group(2)}"
+    return params
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -518,6 +627,24 @@ def process_with_claude(user_message: str) -> Dict[str, Any]:
 
     try:
         tools_spec = convert_mcp_tools_to_anthropic_format()
+        # Filter tools based on intent to reduce available toolset (token + accuracy)
+        intent = user_message.lower()
+        narrowed_tools = []
+        def _need(names: List[str]) -> bool:
+            return any(n in intent for n in names)
+        if _need(["kiali", "graph", "topology", "mesh"]):
+            narrowed_tools += [t for t in tools_spec if t["name"] in {"get_kiali_graph", "get_kiali_service_health"}]
+        if _need(["pod", "pods", "event", "logs"]):
+            narrowed_tools += [t for t in tools_spec if t["name"] in {"list_pods", "get_events", "get_pod_logs"}]
+        if _need(["jaeger", "trace", "latency", "slow"]):
+            narrowed_tools += [t for t in tools_spec if t["name"] in {"query_jaeger_traces"}]
+        if _need(["prometheus", "metric", "error rate", "request rate", "p99", "latency"]):
+            narrowed_tools += [t for t in tools_spec if t["name"] in {"query_prometheus", "get_istio_metrics"}]
+        if _need(["virtualservice", "destinationrule", "gateway", "routing"]):
+            narrowed_tools += [t for t in tools_spec if t["name"] in {"list_virtualservices", "list_destinationrules", "list_gateways"}]
+        if not narrowed_tools:
+            # default minimal set
+            narrowed_tools = [t for t in tools_spec if t["name"] in {"list_pods", "get_events"}]
 
         system_message = (
             "You are an AI SRE assistant for Kubernetes and Istio. "
@@ -535,9 +662,9 @@ def process_with_claude(user_message: str) -> Dict[str, Any]:
             logger.info(f"Claude tool loop iteration {i+1}")
             resp = anthropic_client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=4000,
+                max_tokens=1200,
                 system=system_message,
-                tools=tools_spec,
+                tools=narrowed_tools,
                 messages=messages,
             )
 
@@ -557,7 +684,11 @@ def process_with_claude(user_message: str) -> Dict[str, Any]:
                     tools_used.append(tool_name)
                     logger.info(f"Executing tool: {tool_name} input={tool_input}")
                     try:
-                        result = execute_mcp_tool(tool_name, tool_input)
+                        # merge simple extracted params if missing
+                        inferred = _extract_query_params(user_message)
+                        merged = {**inferred, **(tool_input or {})}
+                        result = execute_mcp_tool(tool_name, merged)
+                        result = _summarize_tool_result(tool_name, result)
                     except Exception as tool_exc:
                         result = {"error": f"Tool execution failed: {tool_exc}"}
                     # Push result back to Claude
@@ -579,6 +710,9 @@ def process_with_claude(user_message: str) -> Dict[str, Any]:
                 text_val = getattr(block, "text", None)
                 if text_val:
                     final_text += text_val
+            # Keep response short by default for demo; Claude should be concise
+            if len(final_text) > 2000:
+                final_text = final_text[:1970] + "..."
             return {"response": final_text or "", "tools_used": list(dict.fromkeys(tools_used))}
 
         # If loop exhausted
