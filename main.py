@@ -477,63 +477,119 @@ def execute_mcp_tool(tool_name: str, parameters: Dict[str, Any]) -> Dict[str, An
     except Exception as e:
         return {"error": f"Failed to execute {tool_name}: {e}"}
 
+def convert_mcp_tools_to_anthropic_format() -> List[Dict[str, Any]]:
+    """Convert MCP tools registry to Anthropic tool format."""
+    anthropic_tools: List[Dict[str, Any]] = []
+    for tool_name, tool_info in MCP_TOOLS.items():
+        properties: Dict[str, Any] = {}
+        required: List[str] = []
+        for param_name, param_info in tool_info["parameters"].items():
+            prop: Dict[str, Any] = {
+                "type": param_info.get("type", "string"),
+                "description": param_info.get("description", f"The {param_name} parameter")
+            }
+            if "default" in param_info:
+                prop["default"] = param_info["default"]
+            properties[param_name] = prop
+            if param_info.get("required", False):
+                required.append(param_name)
+        anthropic_tools.append({
+            "name": tool_name,
+            "description": tool_info.get("description", tool_name),
+            "input_schema": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        })
+    return anthropic_tools
+
 def process_with_claude(user_message: str) -> Dict[str, Any]:
-    """Process user message with Claude using MCP tools"""
+    """Process user message with Claude using Anthropic tool use to call MCP tools."""
+    logger.info("=== Starting process_with_claude ===")
+    logger.info(f"User message: {user_message}")
+
     if not anthropic_client:
+        logger.warning("Anthropic client not initialized!")
         return {
             "response": "Anthropic API key not configured. Please set ANTHROPIC_API_KEY environment variable.",
             "tools_used": []
         }
-    
+
     try:
-        # Create a system message that describes the available tools
-        system_message = f"""You are an AI assistant that can interact with a Kubernetes cluster and Istio service mesh through various tools.
+        tools_spec = convert_mcp_tools_to_anthropic_format()
 
-Available tools:
-{json.dumps(MCP_TOOLS, indent=2)}
-
-When a user asks a question, you should:
-1. Determine which tools are needed to answer the question
-2. Call the appropriate tools with the right parameters
-3. Analyze the results and provide a clear, helpful response
-
-Always explain what you're doing and provide actionable insights based on the data you retrieve."""
-
-        # For this demo, we'll simulate tool calling
-        # In a real MCP implementation, this would be handled by the MCP protocol
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            system=system_message,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"User question: {user_message}\n\nPlease analyze this question and determine which tools you would need to call to answer it. Provide a helpful response based on the available tools."
-                }
-            ]
+        system_message = (
+            "You are an AI SRE assistant for Kubernetes and Istio. "
+            "Use the provided tools to fetch real data before answering. "
+            "Be concise, cite concrete numbers, and give actionable insights."
         )
-        
-        # Extract tools that would be used (simplified for demo)
-        tools_used = []
-        if "pod" in user_message.lower():
-            tools_used.append("list_pods")
-        if "service" in user_message.lower() or "mesh" in user_message.lower():
-            tools_used.extend(["get_kiali_graph", "list_virtualservices"])
-        if "trace" in user_message.lower() or "latency" in user_message.lower():
-            tools_used.append("query_jaeger_traces")
-        if "metric" in user_message.lower() or "error" in user_message.lower():
-            tools_used.extend(["get_istio_metrics", "query_prometheus"])
-        
+
+        messages: List[Dict[str, Any]] = [
+            {"role": "user", "content": user_message}
+        ]
+        tools_used: List[str] = []
+
+        max_iterations = 5
+        for i in range(max_iterations):
+            logger.info(f"Claude tool loop iteration {i+1}")
+            resp = anthropic_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4000,
+                system=system_message,
+                tools=tools_spec,
+                messages=messages,
+            )
+
+            stop_reason = getattr(resp, "stop_reason", None)
+            logger.info(f"Stop reason: {stop_reason}")
+
+            # If Claude produced tool calls, execute them and continue loop
+            made_tool_call = False
+            tool_results_blocks: List[Dict[str, Any]] = []
+            assistant_content_blocks = resp.content
+            for block in assistant_content_blocks:
+                if getattr(block, "type", "") == "tool_use":
+                    made_tool_call = True
+                    tool_name = block.name
+                    tool_input = block.input or {}
+                    tool_id = block.id
+                    tools_used.append(tool_name)
+                    logger.info(f"Executing tool: {tool_name} input={tool_input}")
+                    try:
+                        result = execute_mcp_tool(tool_name, tool_input)
+                    except Exception as tool_exc:
+                        result = {"error": f"Tool execution failed: {tool_exc}"}
+                    # Push result back to Claude
+                    tool_results_blocks.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": json.dumps(result),
+                    })
+
+            if made_tool_call:
+                # Append assistant's tool_use content and our tool results, then continue
+                messages.append({"role": "assistant", "content": assistant_content_blocks})
+                messages.append({"role": "user", "content": tool_results_blocks})
+                continue
+
+            # No tool call -> finalize answer
+            final_text = ""
+            for block in assistant_content_blocks:
+                text_val = getattr(block, "text", None)
+                if text_val:
+                    final_text += text_val
+            return {"response": final_text or "", "tools_used": list(dict.fromkeys(tools_used))}
+
+        # If loop exhausted
         return {
-            "response": response.content[0].text,
-            "tools_used": tools_used
+            "response": "Reached tool call limit. Please refine your question.",
+            "tools_used": list(dict.fromkeys(tools_used)),
         }
-    
+
     except Exception as e:
-        return {
-            "response": f"Error processing request: {e}",
-            "tools_used": []
-        }
+        logger.error(f"Exception in process_with_claude: {type(e).__name__}: {e}", exc_info=True)
+        return {"response": f"Error processing request: {type(e).__name__}: {e}", "tools_used": []}
 
 # API Endpoints
 
