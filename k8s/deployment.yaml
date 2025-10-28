@@ -18,7 +18,7 @@ spec:
       serviceAccountName: mcp-server
       containers:
       - name: mcp-server
-        image: docker.io/maxperreo/mcp-k8s-server:v3.1
+        image: docker.io/maxperreo/mcp-k8s-server:v4
         ports:
         - containerPort: 8080
           name: http
