@@ -1247,21 +1247,26 @@ async def serve_ui():
     """
     return HTMLResponse(content=html_content)
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat(request: ChatRequest):
     """Handle chat requests with session support"""
     try:
         result = process_with_claude(request.message, request.session_id)
-        return ChatResponse(
-            response=result["response"],
-            tools_used=result["tools_used"],
-            session_id=result["session_id"],
-            context_summary=result.get("context_summary")
-        )
+        return {
+            "response": result.get("response", "No response"),
+            "tools_used": result.get("tools_used", []),
+            "session_id": result.get("session_id", "default"),
+            "context_summary": result.get("context_summary", None)
+        }
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
+        return {
+            "response": f"Error: {str(e)}",
+            "tools_used": [],
+            "session_id": "error",
+            "context_summary": None
+        }
+        
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
