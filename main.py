@@ -1126,8 +1126,7 @@ async def serve_ui():
             }`;
             
             // Format content with line breaks
-            const formattedContent = content.replace(/\n/g, '<br>');
-            bubbleDiv.innerHTML = formattedContent;
+            bubbleDiv.textContent = content;
             
             messageDiv.appendChild(bubbleDiv);
             
