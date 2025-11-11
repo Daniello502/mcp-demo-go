@@ -1299,308 +1299,289 @@ def process_with_claude(user_message: str, session_id: Optional[str] = None) -> 
 # ========================
 
 @app.get("/")
-async def serve_ui():
-"""Serve the enhanced web UI"""
-html_content = """
+async def serve_ui() -> HTMLResponse:
+    """Serve the web UI."""
+
+    html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-   <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <title>Enhanced MCP Kubernetes Demo</title>
-   <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Kubernetes Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
-   <div class="container mx-auto px-4 py-8">
-       <div class="max-w-4xl mx-auto">
-           <div class="text-center mb-8">
-               <h1 class="text-4xl font-bold text-gray-800 mb-2">
-                   🚀 Enhanced MCP Kubernetes Demo
-               </h1>
-               <p class="text-gray-600">Intelligent AI-powered cluster insights with memory and context awareness</p>
-           </div>
-           
-           <div class="bg-white rounded-lg shadow-lg p-6 mb-4">
-               <div class="flex justify-between items-center mb-4">
-                   <h2 class="text-lg font-semibold text-gray-700">Conversation</h2>
-                   <button id="clear-button" class="text-sm text-red-500 hover:text-red-700">
-                       Clear History
-                   </button>
-               </div>
-               
-               <div id="chat-container" class="h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
-                   <div class="text-gray-500 text-center py-8">
-                       <p class="text-lg mb-2">👋 Welcome!</p>
-                       <p>I'm your intelligent SRE assistant. I can help you explore and troubleshoot your Kubernetes cluster and Istio service mesh.</p>
-                       <p class="mt-2 text-sm">I'll remember our conversation and proactively gather context.</p>
-                   </div>
-               </div>
-               
-               <div class="flex space-x-2">
-                   <input 
-                       type="text" 
-                       id="message-input" 
-                       placeholder="Ask me anything about your cluster..."
-                       class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   >
-                   <button 
-                       id="send-button" 
-                       class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                   >
-                       Send
-                   </button>
-               </div>
-           </div>
-           
-           <div class="bg-white rounded-lg shadow-lg p-6">
-               <h3 class="text-lg font-semibold text-gray-700 mb-3">💡 Example Questions</h3>
-               <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "What namespaces exist in my cluster?"
-                   </button>
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "Show me the service mesh topology"
-                   </button>
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "Find slow traces in Jaeger"
-                   </button>
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "Check error rates across services"
-                   </button>
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "Analyze my exam-preparatory namespace"
-                   </button>
-                   <button class="example-btn text-left p-3 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm">
-                       "What services have the most traffic?"
-                   </button>
-               </div>
-           </div>
-       </div>
-   </div>
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center">
+                MCP Kubernetes Demo
+            </h1>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div id="chat-container" class="h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4">
+                    <div class="text-gray-500 text-center">
+                        Start a conversation about your Kubernetes cluster and Istio service mesh!
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="Ask about pods, services, traces, metrics..."
+                        class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <button 
+                        id="send-button" 
+                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        Send
+                    </button>
+                    <button
+                        id="clear-button"
+                        class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    >
+                        Clear
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button class="example-btn bg-white border border-gray-200 rounded-lg p-4 text-left hover:shadow">
+                    "Show me the service mesh topology from Kiali"
+                </button>
+                <button class="example-btn bg-white border border-gray-200 rounded-lg p-4 text-left hover:shadow">
+                    "Find slow traces in the last hour from Jaeger"
+                </button>
+                <button class="example-btn bg-white border border-gray-200 rounded-lg p-4 text-left hover:shadow">
+                    "Are there any 5xx errors in the mesh?"
+                </button>
+                <button class="example-btn bg-white border border-gray-200 rounded-lg p-4 text-left hover:shadow">
+                    "Analyze the health of the productpage service"
+                </button>
+            </div>
+        </div>
+    </div>
 
-   <script>
-       const chatContainer = document.getElementById('chat-container');
-       const messageInput = document.getElementById('message-input');
-       const sendButton = document.getElementById('send-button');
-       const clearButton = document.getElementById('clear-button');
-       let sessionId = null;
-       
-       function addMessage(content, isUser = false, tools = null) {
-           const messageDiv = document.createElement('div');
-           messageDiv.className = `mb-4 ${isUser ? 'text-right' : 'text-left'}`;
-           
-           const bubbleDiv = document.createElement('div');
-           bubbleDiv.className = `inline-block max-w-2xl px-4 py-3 rounded-lg ${
-               isUser 
-                   ? 'bg-blue-500 text-white' 
-                   : 'bg-white text-gray-800 shadow border border-gray-200'
-           }`;
-           
-           // Format content with line breaks
-            const formattedContent = content.replace(/\n/g, '<br>');
-            bubbleDiv.innerHTML = formattedContent;
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const clearButton = document.getElementById('clear-button');
+        let sessionId = null;
+        
+        function addMessage(content, isUser = false, tools = []) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${isUser ? 'text-right' : 'text-left'}`;
+            
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = `inline-block max-w-full md:max-w-2xl px-4 py-3 rounded-xl shadow ${isUser ? 'bg-blue-500 text-white ml-auto' : 'bg-white text-gray-800 border border-gray-200'}`;
             bubbleDiv.textContent = content;
            
-           messageDiv.appendChild(bubbleDiv);
+            messageDiv.appendChild(bubbleDiv);
            
-           // Add tools badge if present
-           if (tools && tools.length > 0) {
-               const toolsBadge = document.createElement('div');
-               toolsBadge.className = 'inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs';
-               toolsBadge.textContent = `🔧 Tools: ${tools.join(', ')}`;
-               messageDiv.appendChild(toolsBadge);
-           }
+            if (tools && tools.length > 0) {
+                const toolsBadge = document.createElement('div');
+                toolsBadge.className = 'inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs';
+                toolsBadge.textContent = `🔧 Tools: ${tools.join(', ')}`;
+                messageDiv.appendChild(toolsBadge);
+            }
            
-           chatContainer.appendChild(messageDiv);
-           chatContainer.scrollTop = chatContainer.scrollHeight;
-       }
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
        
-       function addLoadingMessage() {
-           const loadingDiv = document.createElement('div');
-           loadingDiv.className = 'mb-4 text-left';
-           loadingDiv.id = 'loading-message';
-           loadingDiv.innerHTML = `
-               <div class="inline-block px-4 py-3 rounded-lg bg-white shadow border border-gray-200">
-                   <div class="flex items-center space-x-3">
-                       <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                       <span class="text-gray-600">Analyzing your cluster...</span>
-                   </div>
-               </div>
-           `;
-           chatContainer.appendChild(loadingDiv);
-           chatContainer.scrollTop = chatContainer.scrollHeight;
-           return loadingDiv;
-       }
+        function addLoadingMessage() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'mb-4 text-left';
+            loadingDiv.id = 'loading-message';
+            loadingDiv.innerHTML = `
+                <div class="inline-block px-4 py-3 rounded-lg bg-white shadow border border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                        <span class="text-gray-600">Analyzing your cluster...</span>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(loadingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return loadingDiv;
+        }
        
-       async function sendMessage(message) {
-           if (!message.trim()) return;
+        async function sendMessage(message) {
+            if (!message.trim()) return;
            
-           // Add user message
-           addMessage(message, true);
-           messageInput.value = '';
-           messageInput.disabled = true;
-           sendButton.disabled = true;
+            addMessage(message, true);
+            messageInput.value = '';
+            messageInput.disabled = true;
+            sendButton.disabled = true;
            
-           // Add loading message
-           const loadingDiv = addLoadingMessage();
+            const loadingDiv = addLoadingMessage();
            
-           try {
-               const response = await fetch('/chat', {
-                   method: 'POST',
-                   headers: {
-                       'Content-Type': 'application/json',
-                   },
-                   body: JSON.stringify({ 
-                       message: message,
-                       session_id: sessionId
-                   })
-               });
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        session_id: sessionId
+                    })
+                });
                
-               const data = await response.json();
+                const data = await response.json();
                
-               // Store session ID
-               if (data.session_id) {
-                   sessionId = data.session_id;
-               }
+                if (data.session_id) {
+                    sessionId = data.session_id;
+                }
                
-               // Remove loading message
-               loadingDiv.remove();
+                loadingDiv.remove();
                
-               // Add Claude's response
-               addMessage(data.response, false, data.tools_used);
+                addMessage(data.response, false, data.tools_used);
                
-           } catch (error) {
-               loadingDiv.remove();
-               addMessage('❌ Error: ' + error.message, false);
-           } finally {
-               messageInput.disabled = false;
-               sendButton.disabled = false;
-               messageInput.focus();
-           }
-       }
+            } catch (error) {
+                loadingDiv.remove();
+                addMessage('❌ Error: ' + error.message, false);
+            } finally {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
        
-       sendButton.addEventListener('click', () => {
-           sendMessage(messageInput.value);
-       });
+        sendButton.addEventListener('click', () => {
+            sendMessage(messageInput.value);
+        });
        
-       messageInput.addEventListener('keypress', (e) => {
-           if (e.key === 'Enter' && !e.shiftKey) {
-               e.preventDefault();
-               sendMessage(messageInput.value);
-           }
-       });
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(messageInput.value);
+            }
+        });
        
-       clearButton.addEventListener('click', () => {
-           if (confirm('Clear conversation history?')) {
-               chatContainer.innerHTML = `
-                   <div class="text-gray-500 text-center py-8">
-                       <p class="text-lg mb-2">👋 Fresh start!</p>
-                       <p>Conversation cleared. How can I help you?</p>
-                   </div>
-               `;
-               sessionId = null;
-           }
-       });
+        clearButton.addEventListener('click', () => {
+            if (confirm('Clear conversation history?')) {
+                chatContainer.innerHTML = `
+                    <div class="text-gray-500 text-center py-8">
+                        <p class="text-lg mb-2">👋 Fresh start!</p>
+                        <p>Conversation cleared. How can I help you?</p>
+                    </div>
+                `;
+                sessionId = null;
+            }
+        });
        
-       // Example button handlers
-       document.querySelectorAll('.example-btn').forEach(btn => {
-           btn.addEventListener('click', () => {
-               const question = btn.textContent.trim().replace(/^"|"$/g, '');
-               messageInput.value = question;
-               sendMessage(question);
-           });
-       });
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const question = btn.textContent.trim().replace(/^"|"$/g, '');
+                messageInput.value = question;
+                sendMessage(question);
+            });
+        });
        
-       // Focus input on load
-       messageInput.focus();
-   </script>
+        messageInput.focus();
+    </script>
 </body>
 </html>
-   """
-return HTMLResponse(content=html_content)
+    """
+    return HTMLResponse(content=html_content)
+
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
-"""Handle chat requests with session support"""
-try:
-result = process_with_claude(request.message, request.session_id)
-return {
-"response": result.get("response", "No response"),
-"tools_used": result.get("tools_used", []),
-"session_id": result.get("session_id", "default"),
-"context_summary": result.get("context_summary", None)
-}
-except Exception as e:
-logger.error(f"Error in chat endpoint: {e}", exc_info=True)
-return {
-"response": f"Error: {str(e)}",
-"tools_used": [],
-"session_id": "error",
-"context_summary": None
-}
+async def chat(request: ChatRequest) -> Dict[str, Any]:
+    """Handle chat requests with session support."""
+
+    try:
+        result = process_with_claude(request.message, request.session_id)
+        return {
+            "response": result.get("response", "No response"),
+            "tools_used": result.get("tools_used", []),
+            "session_id": result.get("session_id", "default"),
+            "context_summary": result.get("context_summary", None),
+        }
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Error in chat endpoint: %s", exc, exc_info=True)
+        return {
+            "response": f"Error: {exc}",
+            "tools_used": [],
+            "session_id": "error",
+            "context_summary": None,
+        }
+
 
 @app.get("/health")
-async def health_check():
-"""Health check endpoint"""
-cluster_connected = k8s_client is not None
-return {
-"status": "healthy",
-"cluster_connected": cluster_connected,
-"prometheus_connected": prometheus_client is not None,
-"anthropic_configured": anthropic_client is not None,
-"context_cached": not context_cache.needs_refresh(),
-"active_sessions": len(conversation_memory.sessions)
-}
+async def health_check() -> Dict[str, Any]:
+    """Health check endpoint."""
+
+    cluster_connected = k8s_client is not None
+    return {
+        "status": "healthy",
+        "cluster_connected": cluster_connected,
+        "prometheus_connected": prometheus_client is not None,
+        "anthropic_configured": anthropic_client is not None,
+        "context_cached": not context_cache.needs_refresh(),
+        "active_sessions": len(conversation_memory.sessions),
+    }
+
 
 @app.get("/tools")
-async def list_tools():
-"""List available MCP tools"""
-return {"tools": MCP_TOOLS, "count": len(MCP_TOOLS)}
+async def list_tools() -> Dict[str, Any]:
+    """List available MCP tools."""
+
+    return {"tools": MCP_TOOLS, "count": len(MCP_TOOLS)}
+
 
 @app.post("/tools/{tool_name}")
-async def execute_tool(tool_name: str, parameters: Dict[str, Any] = None):
-"""Execute a specific MCP tool directly"""
-if parameters is None:
-parameters = {}
+async def execute_tool(tool_name: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute a specific MCP tool directly."""
 
-result = execute_mcp_tool(tool_name, parameters)
-return result
+    params = parameters or {}
+    return execute_mcp_tool(tool_name, params)
+
 
 @app.get("/context")
-async def get_context():
-"""Get current cluster context"""
-if context_cache.needs_refresh():
-context_data = discover_cluster_context()
-context_cache.update(context_data)
+async def get_context() -> Dict[str, Any]:
+    """Get current cluster context."""
 
-return {
-"summary": context_cache.get_summary(),
-"namespaces": context_cache.namespaces,
-"services": context_cache.services_by_ns,
-"last_refresh": context_cache.last_refresh.isoformat() if context_cache.last_refresh else None
-}
+    if context_cache.needs_refresh():
+        context_data = discover_cluster_context()
+        context_cache.update(context_data)
+
+    return {
+        "summary": context_cache.get_summary(),
+        "namespaces": context_cache.namespaces,
+        "services": context_cache.services_by_ns,
+        "last_refresh": context_cache.last_refresh.isoformat() if context_cache.last_refresh else None,
+    }
+
 
 @app.post("/context/refresh")
-async def refresh_context():
-"""Manually refresh cluster context"""
-context_data = discover_cluster_context()
-context_cache.update(context_data)
-return {"status": "refreshed", "summary": context_cache.get_summary()}
+async def refresh_context() -> Dict[str, Any]:
+    """Manually refresh cluster context."""
+
+    context_data = discover_cluster_context()
+    context_cache.update(context_data)
+    return {"status": "refreshed", "summary": context_cache.get_summary()}
+
 
 @app.on_event("startup")
-async def startup_event():
-"""Actions to perform on server startup"""
-logger.info("Starting Enhanced MCP Kubernetes Demo Server...")
-initialize_clients()
+async def startup_event() -> None:
+    """Actions to perform on server startup."""
 
-# Initial context discovery
-logger.info("Discovering initial cluster context...")
-context_data = discover_cluster_context()
-context_cache.update(context_data)
-logger.info(f"Context discovered: {len(context_cache.namespaces)} namespaces")
+    logger.info("Starting Enhanced MCP Kubernetes Demo Server...")
+    initialize_clients()
 
-logger.info("Server started successfully.")
+    logger.info("Discovering initial cluster context...")
+    context_data = discover_cluster_context()
+    context_cache.update(context_data)
+    logger.info("Context discovered: %d namespaces", len(context_cache.namespaces))
+
+    logger.info("Server started successfully.")
+
 
 if __name__ == "__main__":
-initialize_clients()
-uvicorn.run(app, host="0.0.0.0", port=8080)
+    initialize_clients()
+    uvicorn.run(app, host="0.0.0.0", port=8080)
